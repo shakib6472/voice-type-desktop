@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Voice Bridge</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="/icon.png">
+<style>
+  :root {
+    --ink: #0d1014;
+    --panel: #151a20;
+    --line: #232b34;
+    --text: #e7ecf1;
+    --muted: #78848f;
+    --dim: #4c5761;
+    --live: #47d18b;
+    --warn: #e8664a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--ink);
+    color: var(--text);
+    font-family: "Segoe UI", "Nirmala UI", sans-serif;
+    -webkit-user-select: none; user-select: none;
+    overflow: hidden;
+  }
+  body { display: flex; flex-direction: column; padding: 8px 10px; gap: 6px; }
+
+  .bar { display: flex; align-items: center; gap: 10px; }
+
+  .micwrap { position: relative; display: grid; place-items: center; flex: none; }
+  #toggle {
+    position: relative; z-index: 1;
+    width: 46px; height: 46px; border-radius: 50%;
+    border: 1px solid var(--line); background: var(--panel);
+    color: var(--muted); cursor: pointer;
+    display: grid; place-items: center;
+    transition: border-color .18s, color .18s, transform .12s;
+  }
+  #toggle:hover { border-color: #35424f; }
+  #toggle:active { transform: scale(.95); }
+  #toggle:focus-visible { outline: 2px solid var(--live); outline-offset: 3px; }
+  #toggle svg { width: 20px; height: 20px; }
+  body.live #toggle { color: var(--live); border-color: var(--live); }
+  body.error #toggle { color: var(--warn); border-color: var(--warn); }
+
+  .ring {
+    position: absolute; width: 46px; height: 46px; border-radius: 50%;
+    border: 1px solid var(--live); opacity: 0; pointer-events: none;
+  }
+  body.live .ring { animation: pulse 1.9s ease-out infinite; }
+  @keyframes pulse {
+    from { transform: scale(1); opacity: .5; }
+    to   { transform: scale(1.4); opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { body.live .ring { animation: none; } }
+
+  .langs { display: flex; gap: 5px; flex: 1; }
+  .lang {
+    font-family: inherit; font-size: 12px; padding: 5px 11px; border-radius: 999px;
+    background: transparent; border: 1px solid var(--line); color: var(--muted);
+    cursor: pointer; white-space: nowrap;
+  }
+  .lang[aria-pressed="true"] { color: var(--text); border-color: #3d4a57; background: var(--panel); }
+  .lang:focus-visible { outline: 2px solid var(--live); outline-offset: 2px; }
+
+  #info {
+    flex: none; width: 22px; height: 22px; border-radius: 6px;
+    background: transparent; border: 1px solid var(--line); color: var(--dim);
+    cursor: pointer; font-size: 12px; line-height: 1; padding: 0;
+    display: grid; place-items: center;
+  }
+  #info:hover { color: var(--muted); border-color: #35424f; }
+  #info[aria-pressed="true"] { color: var(--text); background: var(--panel); }
+  #info:focus-visible { outline: 2px solid var(--live); outline-offset: 2px; }
+
+  #target {
+    font-size: 11px; color: var(--dim);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    padding: 4px 7px; border: 1px solid var(--line); border-radius: 5px;
+  }
+  #target.bad { color: var(--warn); border-color: rgba(232,102,74,.4); }
+  #target[hidden] { display: none; }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="micwrap">
+    <span class="ring"></span>
+    <button id="toggle" aria-pressed="false" aria-label="Start dictation">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+        <rect x="9" y="2" width="6" height="12" rx="3"/>
+        <path d="M5 11a7 7 0 0 0 14 0"/>
+        <path d="M12 18v4"/>
+      </svg>
+    </button>
+  </div>
+  <div class="langs" id="langs"></div>
+  <button id="info" type="button" aria-pressed="false" title="Show where text is being typed">i</button>
+</div>
+
+<div id="target" hidden>Waiting for a target window</div>
+
+<script>
+(function () {
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var body = document.body;
+  var toggleBtn = document.getElementById("toggle");
+  var langsEl = document.getElementById("langs");
+  var targetEl = document.getElementById("target");
+  var infoBtn = document.getElementById("info");
+
+  var H_SMALL = 110, H_TALL = 142;
+
+  var config = {
+    defaultLang: "bn-BD", altLang: "en-US", typeInterim: false,
+    hotkeyToggle: "ctrl+alt+m", hotkeyLang: "ctrl+alt+l", target: ""
+  };
+  var rec = null;
+  var listening = false;
+  var lang = config.defaultLang;
+  var restartTimer = null;
+  var chain = Promise.resolve();
+
+  function label(code) {
+    if (code.indexOf("bn") === 0) return "বাংলা";
+    if (code.indexOf("en") === 0) return "EN";
+    return code;
+  }
+
+  function prettyKeys(spec) {
+    return spec.split("+").map(function (p) {
+      p = p.trim();
+      return p.charAt(0).toUpperCase() + p.slice(1);
+    }).join(" ");
+  }
+
+  // The mic is the only status light: grey idle, green live, red problem.
+  // The reason for red always sits in the tooltip and in the target line.
+  function setError(text) {
+    body.classList.add("error");
+    toggleBtn.title = text;
+    showTarget(text, true);
+  }
+
+  function clearError() {
+    body.classList.remove("error");
+    refreshMicTitle();
+  }
+
+  function refreshMicTitle() {
+    toggleBtn.title = (listening ? "Listening in " + lang : "Start dictation")
+      + "  (" + prettyKeys(config.hotkeyToggle) + ")";
+  }
+
+  function showTarget(text, bad) {
+    targetEl.textContent = text;
+    targetEl.classList.toggle("bad", !!bad);
+  }
+
+  // The "typing into ..." line is optional, and the window shrinks without it.
+  function applyInfo(on) {
+    targetEl.hidden = !on;
+    infoBtn.setAttribute("aria-pressed", String(on));
+    try { localStorage.setItem("vb.showTarget", on ? "1" : "0"); } catch (e) {}
+    try { window.resizeTo(window.outerWidth, on ? H_TALL : H_SMALL); } catch (e) {}
+  }
+
+  infoBtn.addEventListener("click", function () {
+    applyInfo(infoBtn.getAttribute("aria-pressed") !== "true");
+  });
+
+  var savedInfo = "0";
+  try { savedInfo = localStorage.getItem("vb.showTarget") || "0"; } catch (e) {}
+  applyInfo(savedInfo === "1");
+
+  if (!SR) {
+    setError("This browser has no speech engine. Use Chrome or Edge.");
+    toggleBtn.disabled = true;
+    return;
+  }
+
+  function post(path, payload, onResult) {
+    chain = chain.then(function () {
+      return fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      }).then(function (r) {
+        if (!r.ok) throw new Error("Voice Bridge server error " + r.status);
+        return r.json();
+      }).then(function (j) { if (onResult) onResult(j); })
+        .catch(function (err) { setError(err.message || "Cannot reach Voice Bridge"); });
+    });
+    return chain;
+  }
+
+  function onTyped(res) {
+    if (!res) return;
+    if (res.result === "blocked" || res.result === "error") {
+      setError(res.message || "Typing blocked");
+    } else if (res.message) {
+      clearError();
+      showTarget("Typing into  " + res.message, false);
+    }
+  }
+
+  function renderLangs() {
+    langsEl.innerHTML = "";
+    [config.defaultLang, config.altLang].forEach(function (code) {
+      var b = document.createElement("button");
+      b.className = "lang";
+      b.type = "button";
+      b.textContent = label(code);
+      b.title = code;
+      b.setAttribute("aria-pressed", String(code === lang));
+      b.addEventListener("click", function () { setLang(code); });
+      langsEl.appendChild(b);
+    });
+  }
+
+  function setLang(code) {
+    if (code === lang) return;
+    lang = code;
+    renderLangs();
+    refreshMicTitle();
+    if (listening) { stop(); setTimeout(start, 180); }
+  }
+
+  function buildRecognizer() {
+    var r = new SR();
+    r.lang = lang;
+    r.continuous = true;
+    r.interimResults = true;
+    r.maxAlternatives = 1;
+
+    r.onstart = function () {
+      body.classList.add("live");
+      toggleBtn.setAttribute("aria-pressed", "true");
+      toggleBtn.setAttribute("aria-label", "Stop dictation");
+      clearError();
+    };
+
+    r.onresult = function (e) {
+      for (var i = e.resultIndex; i < e.results.length; i++) {
+        var result = e.results[i];
+        var text = result[0].transcript;
+        if (result.isFinal) {
+          post("/text", { text: text, final: true }, onTyped);
+        } else if (config.typeInterim) {
+          post("/text", { text: text, final: false }, onTyped);
+        }
+      }
+    };
+
+    r.onerror = function (e) {
+      if (e.error === "no-speech" || e.error === "aborted") return;
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        listening = false;
+        paintStopped();
+        setError("Microphone blocked. Allow it for this page, then reload.");
+        return;
+      }
+      setError("Speech engine error: " + e.error);
+    };
+
+    r.onend = function () {
+      // Chrome ends the session after a pause. Restart it so dictation feels
+      // continuous, the same way the Voice In extension does.
+      if (!listening) { paintStopped(); return; }
+      clearTimeout(restartTimer);
+      restartTimer = setTimeout(function () {
+        try { rec.start(); } catch (err) { /* already starting */ }
+      }, 250);
+    };
+
+    return r;
+  }
+
+  function paintStopped() {
+    body.classList.remove("live");
+    toggleBtn.setAttribute("aria-pressed", "false");
+    toggleBtn.setAttribute("aria-label", "Start dictation");
+    refreshMicTitle();
+  }
+
+  function start() {
+    if (listening) return;
+    listening = true;
+    rec = buildRecognizer();
+    try {
+      rec.start();
+    } catch (err) {
+      listening = false;
+      setError("Could not start: " + err.message);
+      return;
+    }
+    post("/state", { listening: true, lang: lang });
+  }
+
+  function stop() {
+    if (!listening) return;
+    listening = false;
+    clearTimeout(restartTimer);
+    try { rec.stop(); } catch (err) {}
+    paintStopped();
+    post("/state", { listening: false, lang: lang });
+  }
+
+  toggleBtn.addEventListener("click", function () {
+    listening ? stop() : start();
+  });
+
+  // Commands pushed from the Python side when a global hotkey fires.
+  var events = new EventSource("/events");
+  events.onmessage = function (e) {
+    var msg = JSON.parse(e.data);
+    if (msg.cmd === "toggle") { listening ? stop() : start(); }
+    if (msg.cmd === "lang") { setLang(lang === config.defaultLang ? config.altLang : config.defaultLang); }
+    if (msg.cmd === "target") { showTarget("Typing into  " + msg.title, false); }
+  };
+
+  fetch("/config")
+    .then(function (r) { return r.json(); })
+    .then(function (c) {
+      config = c;
+      lang = c.defaultLang;
+      renderLangs();
+      refreshMicTitle();
+      if (c.target) showTarget("Typing into  " + c.target, false);
+    })
+    .catch(function () { renderLangs(); refreshMicTitle(); });
+})();
+</script>
+</body>
+</html>
