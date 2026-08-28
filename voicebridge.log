@@ -1,2 +1,181 @@
-16:36:40  log smoke test
-16:36:49    -> [VB TEST TARGET] আমি বাংলায় কথা বলছি ১২৩ abc
+16:53:14  Voice Bridge  http://127.0.0.1:8756/
+16:53:14    start / stop      ctrl+alt+m
+16:53:14    switch language   ctrl+alt+l
+16:53:14    languages         bn-BD  /  en-US
+16:53:14    close the Voice Bridge window to quit
+16:56:35    LISTENING  bn-BD   target: Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome
+16:56:41    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] আচ্ছা এখন সব ঠিকঠাক আছে
+16:56:53    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] এখন ওদের নতুন আরেকটা লেসন বানাতে হবে যেখানে আসলে টেমপ্লেট
+16:57:07    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] মানে সেখানে লিখতে এখন থাকতে পারে লেসন্স থাকতে পারে ভিডিও থাকতে পারে অডিও থাকতে পারে বিভিন্ন ধরনের টেমপ্লেট নিয়ে পাওয়ার পয়েন্ট বা বিভিন্ন প্রেজেন্টেশন থাকতে পারে
+16:57:21    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] একটা কোর্সের কন্টেন যেরকম হয় আর কি সেরকম একটা টেমপ্লেট বানাতে হবে এই অংশটা এরকম হতে পারে এই অংশটা এরকম হতে পারে
+16:58:11    stopped    bn-BD
+16:58:12    LISTENING  bn-BD   target: Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome
+16:58:17    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] আমি কিছু স্যাম্পল যোগ করে দিচ্ছি
+16:58:23    stopped    bn-BD
+16:58:23    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] কাজ করেছে এখনো শেষ হয়নি
+16:59:27    LISTENING  bn-BD   target: Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome
+16:59:35    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] মূলত অডিও ইমেজ ভিডিও হরলিংক এগুলাই বেশি থাকবে
+16:59:40    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] আর লিংক
+16:59:51    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] তাহলে তুমি একটা মাস্টার লেসন টেমপ্লেট বানাও যেখানে সব ধরনের জিনিসগুলো থাকবে
+17:02:19    stopped    bn-BD
+17:02:35  Voice Bridge window closed. Quitting.
+17:02:49  Voice Bridge  http://127.0.0.1:8756/
+17:02:49    start / stop      ctrl+alt+m
+17:02:49    switch language   ctrl+alt+l
+17:02:49    languages         bn-BD  /  en-US
+17:02:49    close the Voice Bridge window to quit
+17:03:07  Voice Bridge window closed. Quitting.
+17:03:25  Voice Bridge  http://127.0.0.1:8756/
+17:03:25    start / stop      ctrl+alt+m
+17:03:25    switch language   ctrl+alt+l
+17:03:25    languages         bn-BD  /  en-US
+17:03:25    close the Voice Bridge window to quit
+17:03:29    LISTENING  bn-BD   target: Claude
+17:03:38    -> [Claude] একবার পিন করে কেটে দিলে পরে আর ওই পিনে ক্লিক করলে কাজ হচ্ছে না
+17:03:44    -> [Claude] নতুন গুগল ক্রোম উইন্ডো ওপেন হয়ে যাচ্ছে
+17:03:51    -> [Claude] আর মূল কথা শর্টকাট কোনটাই কাজ করতেছে না
+17:03:58    -> [Claude] চাপলে কিছুই হচ্ছে না
+17:04:05    -> [Claude] তবে এই লেখাগুলো আমি এটা দিয়ে লিখতেছি লিখা ঠিকঠাক হচ্ছে
+17:04:33    stopped    bn-BD
+17:04:33    LISTENING  bn-BD   target: Claude
+17:04:39    -> [Claude] তার মানে কি আমাকে প্রতিবার অন করে নিতে হবে
+17:06:09    -> [WhatsApp] হ্যাঁ ভাই
+17:06:17    stopped    bn-BD
+17:09:11  Voice Bridge  http://127.0.0.1:8756/
+17:09:11    start / stop      ctrl+alt+m
+17:09:11    switch language   ctrl+alt+l
+17:09:11    languages         bn-BD  /  en-US
+17:09:11    close the Voice Bridge window to quit
+17:09:11    ! Hotkey 'ctrl+alt+m' (start/stop) is already taken by another app. Edit the CONFIG block and restart.
+17:09:11    ! Hotkey 'ctrl+alt+l' (language) is already taken by another app. Edit the CONFIG block and restart.
+17:09:53  Voice Bridge  http://127.0.0.1:8756/
+17:09:53    start / stop      ctrl+alt+m
+17:09:53    switch language   ctrl+alt+l
+17:09:53    languages         bn-BD  /  en-US
+17:09:53    close the Voice Bridge window to quit
+17:16:50    -> [VBT|আমি বাংলায়] আমি বাংলায় কথা বলছি।
+17:16:52    -> [VBT|আমি বাংলার] আমি বাংলায় কথা।
+17:16:53    -> [VBT|তুমি কেমন আছো] আমি কেমন আছি।
+17:16:55    -> [VBT|] কেমন আছো?
+17:16:56    -> [VBT|] hello world.
+17:16:58    -> [VBT|] শুধু ফাইনাল।
+17:16:59    -> [VBT|] প্রথম বাক্য।
+17:16:59    -> [VBT|প্রথম বাক্য।] দ্বিতীয় বাক্য।
+17:17:30    -> [VBT|আমি বাংলায়] আমি বাংলায় কথা বলছি।
+17:17:31    -> [VBT|আমি বাংলার] আমি বাংলায় কথা।
+17:17:33    -> [VBT|তুমি কেমন আছো] আমি কেমন আছি।
+17:17:34    -> [VBT|] কেমন আছো?
+17:17:36    -> [VBT|hello wor] hello world.
+17:17:37    -> [VBT|] শুধু ফাইনাল।
+17:17:39    -> [VBT|] প্রথম বাক্য।
+17:17:39    -> [VBT|প্রথম বাক্য।] দ্বিতীয় বাক্য।
+17:18:17  Voice Bridge  http://127.0.0.1:8756/
+17:18:17    start / stop      ctrl+alt+m
+17:18:17    switch language   ctrl+alt+l
+17:18:17    languages         bn-BD  /  en-US
+17:18:17    close the Voice Bridge window to quit
+17:18:27  Voice Bridge is already running. Showing its window.
+17:18:46  FATAL  Another copy of Voice Bridge is running but has no window.
+
+End the pythonw.exe task in Task Manager and try again.
+17:18:55  Voice Bridge window closed. Quitting.
+17:20:31  Voice Bridge  http://127.0.0.1:8756/
+17:20:31    start / stop      ctrl+alt+m
+17:20:31    switch language   ctrl+alt+l
+17:20:31    languages         bn-BD  /  en-US
+17:20:31    close the Voice Bridge window to quit
+17:20:40  Voice Bridge is already running. Showing its window.
+17:20:49  Voice Bridge window closed. Quitting.
+17:20:49  Voice Bridge  http://127.0.0.1:8756/
+17:20:49    start / stop      ctrl+alt+m
+17:20:49    switch language   ctrl+alt+l
+17:20:49    languages         bn-BD  /  en-US
+17:20:49    close the Voice Bridge window to quit
+17:22:53  Voice Bridge  http://127.0.0.1:8756/
+17:22:53    start / stop      ctrl+alt+m
+17:22:53    switch language   ctrl+alt+l
+17:22:53    languages         bn-BD  /  en-US
+17:22:53    close the Voice Bridge window to quit
+17:28:48    LISTENING  bn-BD   target: Claude
+17:28:52    -> [Claude] আচার আমাকে কথা বলছ না।
+17:28:57    -> [Claude] এসব কি লিখতেছো।
+17:29:01    -> [Claude] হায় হায় আমার লাফালাফি করে কেন।
+17:29:06    -> [Claude] এত আরেক ঝামেলা।
+17:29:10    -> [Claude] এরকম লাফালাফি করে কেন।
+17:29:19    -> [Claude] আচ্ছা,
+17:29:27    -> [Claude] আছে তাহলে।
+17:29:31    -> [Claude] কেমন আছো।
+17:29:47    stopped    bn-BD
+17:29:48    LISTENING  bn-BD   target: Claude
+17:29:51    -> [Claude] কেমন আছো।
+17:29:56    stopped    en-US
+17:29:57    LISTENING  en-US   target: Claude
+17:30:02    -> [Claude] let's try something English.
+17:30:10    -> [Claude] English looks good.
+17:30:15    stopped    en-US
+17:30:16    LISTENING  bn-BD   target: Claude
+17:30:22    -> [Claude] খুবই সুন্দর দেখে ভালো লাগলো।
+17:30:27    -> [Claude] একটা জিনিস।
+17:30:34    -> [Claude] কথা বলার সময় যে টাইপিং গুলো হয় এটা কেমন যেন একটু লাফালাফি করে।
+17:30:45    -> [Claude] আর বাক্য শেষ হলেই শুধু। বসে।
+17:30:48    -> [Claude] যেটা খুবই ভালো।
+17:31:04    -> [Claude] কিন্তু কিছু সেন্টেন্স আছে যেখানে আসলে ভেতরে কমাও থাকা দরকার আর কিছু প্রশ্ন আছে যার পড়া আসলে? চিহ্ন আসা উচিত।
+17:31:14    -> [Claude] আর যখন একটু বড় বাক্য বলি তখন আসলে অনেক লাফালাফি করে।
+17:31:24    -> [] লাফালাফি বলতে আমি।
+17:31:42    stopped    bn-BD
+17:31:43    LISTENING  bn-BD   target: Claude
+17:31:48    -> [Claude] একটা সময় পড়ে গিয়ে লেখা বন্ধ হয়ে যায়।
+17:31:58    -> [Claude] আবার গিয়ে ক্লিক করে আবার অন করলে এরপরে আবার লেখা শুরু হয়।
+17:32:02    -> [Claude] লেখা বন্ধ হয় কিন্তু ওটা অফ হয় না।
+17:32:10    -> [Claude] আর কিছু কি করা যায়।
+17:34:08    stopped    bn-BD
+17:35:24    LISTENING  bn-BD   target: Claude
+17:35:29    -> [Claude] ইউটা আরেকটু চেঞ্জ করতে হবে।
+17:35:50    -> [Claude] জাস্ট মাইক আইফোন আরেকটা সেটিং একাউন্ট।
+17:35:55    -> [Claude] যত ছোট করা যায়।
+17:36:02    -> [Claude] সেটিং এখানে ক্লিক করলে ল্যাঙ্গুয়েজ সুইচ এর অপশন আসবে।
+17:37:37    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] আচ্ছা তুমি তো এই প্রজেক্ট সম্পর্কে সব জানো তাই না।
+17:37:52    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] আমাকে তাহলে একটা কোর্স বানিয়ে দাও।
+17:38:24  Voice Bridge window closed. Quitting.
+17:38:27  Voice Bridge  http://127.0.0.1:8756/
+17:38:27    start / stop      ctrl+alt+m
+17:38:27    switch language   ctrl+alt+l
+17:38:27    languages         bn-BD  /  en-US
+17:38:27    close the Voice Bridge window to quit
+17:38:39  Voice Bridge window closed. Quitting.
+17:40:19  Voice Bridge  http://127.0.0.1:8756/
+17:40:19    start / stop      ctrl+alt+m
+17:40:19    switch language   ctrl+alt+l
+17:40:19    languages         bn-BD  /  en-US
+17:40:19    close the Voice Bridge window to quit
+17:40:24  Voice Bridge window closed. Quitting.
+17:40:33  Voice Bridge  http://127.0.0.1:8756/
+17:40:33    start / stop      ctrl+alt+m
+17:40:33    switch language   ctrl+alt+l
+17:40:33    languages         bn-BD  /  en-US
+17:40:33    close the Voice Bridge window to quit
+17:40:35    LISTENING  bn-BD   target: 127.0.0.1_/
+17:40:47    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] সম্পর্কে সবই জানো।
+17:40:53    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] তুমি তো এই প্রজেক্ট সম্পর্কে সবই জানো।
+17:40:57    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] এখন আমাকে একটা কোর্স বানিয়ে দাও।
+17:41:02    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] করছেন নাম ডেসক্রিপশন।
+17:41:12    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] কোর্সের নাম।
+17:41:15    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] ডেসক্রিপশন।
+17:41:19    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] আর যা যা ম্যাটার লাগে।
+17:42:06    stopped    bn-BD
+17:42:06    LISTENING  bn-BD   target: Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome
+17:42:11    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] লেসনের কোন কন্টেন্ট দিতে হবে না।
+17:42:16    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] তবে লেসনের নাম টপিকের নাম দিতে হবে।
+17:42:26    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] ইমেজ দিতে হবে না ইমেজের ব্যবস্থা আমি করতেছি।
+17:42:32    stopped    bn-BD
+17:42:35    LISTENING  bn-BD   target: Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome
+17:42:39    -> [Cardioserv কন্টেন্ট প্রেজেন্টেশন উন্নতি - Claude - Google Chrome] এখন তো লেখা ভালই হচ্ছে।
+17:42:44    -> [VBT|আমি বাংলা] আমি বাংলায় কথা বলছি।
+17:42:44    -> [VBT|] এতে করে একটু সময় নিচ্ছে মনে হচ্ছে।
+17:42:45    -> [VBT|] তুমি কোথায় যাচ্ছ?
+17:42:47    -> [VBT|] আমি ভালো আছি।
+17:42:47    -> [VBT|আমি ভালো আছি।] তুমি কেমন আছ?
+17:42:49    -> [VBT|আমি] আমি ভালো আছি।
+17:42:50    ! No target yet.
+17:42:50    -> [VBT|আমি] আমি ভাত খাই।
+17:42:58    stopped    bn-BD

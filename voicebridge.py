@@ -23,6 +23,7 @@ import ctypes
 import io
 import json
 import os
+import re
 import subprocess
 import queue
 import sys
@@ -52,13 +53,81 @@ HOTKEY_LANG = "ctrl+alt+l"     # switch between DEFAULT_LANG and ALT_LANG
 # typing. Turn off if you would rather nothing be typed in that situation.
 RESTORE_FOCUS = True
 
-# Type partial results while you are still speaking, then correct them.
-# Feels faster, but Bangla interim results change a lot, so you will see
-# characters being erased and rewritten. Try False first.
-TYPE_INTERIM = False
+# Type words while you are still speaking instead of waiting for the pause.
+# Google keeps revising what it heard, so the tail of the line gets rewritten
+# as you go. Only the characters that actually changed are retyped, and
+# Backspace deletes exactly one character in both Windows and Chromium text
+# boxes, Bangla conjuncts included. Set to False to go back to waiting for the
+# full phrase, which is quieter but takes about two seconds longer.
+TYPE_INTERIM = True
 
 # Add a space after every finished phrase.
 ADD_TRAILING_SPACE = True
+
+# How long the text Voice Bridge typed stays trustworthy. After this much
+# quiet the caret has probably moved, so those characters are never
+# backspaced over again. This is what stops a stalled phrase from eating
+# something you typed by hand minutes later.
+TYPED_TEXT_STALE_SEC = 15
+
+# Only type the part of an interim result that Google has stopped changing,
+# and only up to the last finished word. Google rewrites the tail of what it
+# heard several times a second, and typing every revision makes the line jump
+# about. Set to False to type every revision the moment it arrives.
+STABLE_INTERIM = True
+
+# Google never punctuates Bangla. Voice Bridge finishes a phrase exactly where
+# you stop speaking, which is usually where a daari belongs, so it puts one
+# there. Set to False if you would rather add punctuation yourself.
+ADD_END_MARK = True
+END_MARK = {"bn": "।", "en": "."}
+
+# End a phrase with a question mark when it reads like a question.
+DETECT_QUESTIONS = True
+
+# Words that ask something. The first group means a question wherever it
+# appears. The second group only means one at the edges of the phrase, because
+# "কি" in the middle of a sentence is usually not a question at all.
+QUESTION_WORDS = {
+    "bn": ("কেন", "কোথায়", "কোথা", "কখন", "কীভাবে", "কিভাবে", "কেমন",
+           "কারা", "কাকে", "কতটা", "কতটুকু", "কতগুলো", "কোনটা", "কোনগুলো",
+           "নাকি"),
+    "en": (),
+}
+QUESTION_EDGE_WORDS = {
+    "bn": ("কি", "কী", "কে", "কত", "কার", "কোন"),
+    "en": ("what", "why", "how", "when", "where", "who", "whom", "which",
+           "whose", "is", "are", "am", "was", "were", "do", "does", "did",
+           "can", "could", "will", "would", "should", "shall", "may", "might",
+           "have", "has", "had"),
+}
+
+# Put a comma in front of these when they join two halves of a sentence.
+ADD_INNER_COMMAS = True
+COMMA_BEFORE = {
+    "bn": ("কিন্তু", "তবে", "যদিও", "তবুও", "অর্থাৎ", "কারণ"),
+    "en": ("but", "however", "although", "because"),
+}
+
+# Say one of these words and the punctuation mark is typed instead of the word.
+# Nothing here may produce Enter or a newline, so a chat message can never be
+# sent by accident.
+SPOKEN_PUNCTUATION = {
+    # "দাড়ি" (beard) and "কমা" (to reduce) are left out on purpose: they are
+    # ordinary words, and turning them into punctuation would quietly mangle
+    # sentences like "তার দাড়ি অনেক বড়". Add them here if you want them.
+    "bn": {
+        "দাঁড়ি": "।", "পূর্ণচ্ছেদ": "।",
+        "কমা চিহ্ন": ",", "প্রশ্নবোধক": "?", "প্রশ্ন চিহ্ন": "?",
+        "বিস্ময়বোধক": "!", "বিস্ময় চিহ্ন": "!",
+        "কোলন": ":", "সেমিকোলন": ";", "হাইফেন": "-",
+    },
+    "en": {
+        "comma": ",", "full stop": ".", "period": ".",
+        "question mark": "?", "exclamation mark": "!",
+        "colon": ":", "semicolon": ";", "hyphen": "-",
+    },
+}
 
 # Number of characters sent to Windows per SendInput call.
 CHUNK_SIZE = 100
@@ -70,17 +139,26 @@ CHUNK_DELAY_MS = 0
 # Open the recognizer window automatically on startup.
 AUTO_OPEN_WINDOW = True
 
-# Width and height of the Voice Bridge window, in pixels.
-WINDOW_SIZE = (300, 110)
+# Size of the Voice Bridge window, in pixels. Chrome keeps about 36 pixels of
+# this for its own title bar, so the page itself gets a little less. This
+# applies the first time only: after that Chrome remembers whatever size you
+# drag the window to, which is usually what you want.
+WINDOW_SIZE = (250, 136)
 
 # Closing the Voice Bridge window quits Voice Bridge. Because the Start Menu
-# shortcut runs without a console, this is the only way to stop it. A page
-# reload also drops the connection briefly, so wait this long before acting.
-QUIT_GRACE_SEC = 6
+# shortcut runs without a console, this is the only way to stop it. Seconds to
+# wait after the window disappears before quitting, and how long to wait for
+# the window to appear at all before giving up.
+QUIT_GRACE_SEC = 2
+STARTUP_WINDOW_TIMEOUT_SEC = 30
 
 # Windows whose title contains this are treated as Voice Bridge's own, and
 # are never used as a typing target.
 WINDOW_TITLE_MARKER = "Voice Bridge"
+
+# Seconds to wait for a copy that is shutting down before starting a new one.
+# Closing the window and immediately clicking the shortcut lands here.
+SINGLE_INSTANCE_WAIT_SEC = 35
 
 # ====================================================================
 
@@ -186,6 +264,17 @@ user32.GetWindowThreadProcessId.restype = wintypes.DWORD
 user32.AttachThreadInput.argtypes = (wintypes.DWORD, wintypes.DWORD, wintypes.BOOL)
 user32.GetWindowTextLengthW.argtypes = (wintypes.HWND,)
 user32.GetWindowTextW.argtypes = (wintypes.HWND, wintypes.LPWSTR, ctypes.c_int)
+user32.IsWindowVisible.argtypes = (wintypes.HWND,)
+
+ENUM_WINDOWS_PROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+user32.EnumWindows.argtypes = (ENUM_WINDOWS_PROC, wintypes.LPARAM)
+
+kernel32.CreateMutexW.argtypes = (wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR)
+kernel32.CreateMutexW.restype = wintypes.HANDLE
+kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+
+ERROR_ALREADY_EXISTS = 183
+SINGLE_INSTANCE_NAME = "Local\\VoiceBridge.SingleInstance"
 
 
 # --------------------------- keyboard input ---------------------------
@@ -247,6 +336,8 @@ def press_backspace(count):
             events.append(down)
             events.append(up)
         _send(events)
+        if CHUNK_DELAY_MS:
+            time.sleep(CHUNK_DELAY_MS / 1000.0)
 
 
 # --------------------------- window tracking ---------------------------
@@ -264,6 +355,20 @@ def window_title(hwnd):
 
 def is_own_window(hwnd):
     return WINDOW_TITLE_MARKER in window_title(hwnd)
+
+
+def find_own_window():
+    """The browser window showing the Voice Bridge page, if it is open."""
+    found = []
+
+    def visit(hwnd, _):
+        if user32.IsWindowVisible(hwnd) and is_own_window(hwnd):
+            found.append(hwnd)
+            return False
+        return True
+
+    user32.EnumWindows(ENUM_WINDOWS_PROC(visit), 0)
+    return found[0] if found else None
 
 
 target = {"hwnd": None, "title": ""}
@@ -315,10 +420,165 @@ def force_focus(hwnd):
     return user32.GetForegroundWindow() == hwnd
 
 
+# --------------------------- one copy at a time ---------------------------
+
+def claim_single_instance():
+    """Make sure only one Voice Bridge runs at a time.
+
+    Clicking the shortcut while Voice Bridge was already running used to start
+    a second copy. Windows happily lets both bind port 8756, so the second one
+    served a window whose Ctrl+Alt+M could never be registered, and pressing
+    the hotkey did nothing. Now the second copy brings the first one's window
+    to the front and quits.
+
+    If the first copy is on its way out, which is what happens when you close
+    the window and click the shortcut a second later, wait for it to finish
+    and then take over.
+    """
+    deadline = time.monotonic() + SINGLE_INSTANCE_WAIT_SEC
+    while True:
+        handle = kernel32.CreateMutexW(None, False, SINGLE_INSTANCE_NAME)
+        if handle and ctypes.get_last_error() != ERROR_ALREADY_EXISTS:
+            return handle
+        if handle:
+            kernel32.CloseHandle(handle)
+
+        hwnd = find_own_window()
+        if hwnd:
+            log("Voice Bridge is already running. Showing its window.")
+            force_focus(hwnd)
+            return None
+
+        if time.monotonic() >= deadline:
+            fatal("Another copy of Voice Bridge is running but has no window.\n\n"
+                  "End the pythonw.exe task in Task Manager and try again.")
+            return None
+
+        time.sleep(0.25)
+
+
 # --------------------------- typing pipeline ---------------------------
 
 type_lock = threading.Lock()
-pending_interim_len = 0
+
+# What is currently on screen for the phrase being spoken, where it went, and
+# when it was written. The timestamp matters: if nothing has been typed for a
+# while, the caret has almost certainly moved and those characters must never
+# be backspaced over, because by then they may be someone else's text.
+typed_text = ""
+typed_hwnd = None
+typed_at = 0.0
+
+# The last interim result, used to work out which part Google has settled on.
+last_interim = ""
+
+PUNCTUATION_CHARS = "।,.?!:;…-"
+
+
+def language_family(lang):
+    """bn-BD and bn-IN are both "bn"."""
+    return (lang or DEFAULT_LANG).split("-")[0].lower()
+
+
+def apply_spoken_punctuation(text, family):
+    """Turn spoken words like "পূর্ণচ্ছেদ" or "comma" into the mark itself."""
+    table = SPOKEN_PUNCTUATION.get(family)
+    if not table:
+        return text
+    for phrase in sorted(table, key=len, reverse=True):
+        text = re.sub(r"(?<!\S)" + re.escape(phrase) + r"(?!\S)", table[phrase], text)
+    # Punctuation belongs against the word before it, never after a space.
+    return re.sub(r"\s+([" + re.escape(PUNCTUATION_CHARS) + r"])", r"\1", text)
+
+
+def words_of(text):
+    return [w.strip(PUNCTUATION_CHARS) for w in text.split() if w.strip(PUNCTUATION_CHARS)]
+
+
+def looks_like_question(text, family):
+    """Does this phrase ask something?
+
+    Some words mean a question wherever they appear. Others, "কি" above all,
+    only do at the edges of the phrase, since in the middle they usually mean
+    something else entirely.
+    """
+    words = words_of(text)
+    if not words:
+        return False
+    if any(w in QUESTION_WORDS.get(family, ()) for w in words):
+        return True
+    edge = QUESTION_EDGE_WORDS.get(family, ())
+    if words[0] in edge:
+        return True
+    return family != "en" and words[-1] in edge
+
+
+def add_inner_commas(text, family):
+    """A comma in front of the words that join two halves of a sentence."""
+    joiners = COMMA_BEFORE.get(family, ())
+    if not joiners:
+        return text
+    words = text.split()
+    for i in range(1, len(words)):
+        if words[i] in joiners and words[i - 1][-1:] not in tuple(PUNCTUATION_CHARS):
+            words[i - 1] += ","
+    return " ".join(words)
+
+
+def finish_phrase(text, lang):
+    """The finished form of a phrase: punctuation applied, daari added."""
+    family = language_family(lang)
+    out = apply_spoken_punctuation(text.strip(), family).strip()
+    if not out:
+        return ""
+    if ADD_INNER_COMMAS:
+        out = add_inner_commas(out, family)
+    if ADD_END_MARK and out[-1] not in PUNCTUATION_CHARS:
+        if DETECT_QUESTIONS and looks_like_question(out, family):
+            out += "?"
+        else:
+            out += END_MARK.get(family, "")
+    if ADD_TRAILING_SPACE:
+        out += " "
+    return out
+
+
+def settled_part(text):
+    """The part of an interim result Google has stopped changing.
+
+    Only what the last two results agree on is typed, cut back to the last
+    finished word. Google rewrites the tail of what it heard several times a
+    second, and typing every revision is what made the line jump about.
+    """
+    global last_interim
+    agreed = text[:common_prefix_len(last_interim, text)]
+    last_interim = text
+    cut = agreed.rfind(" ")
+    return agreed[:cut] if cut > 0 else ""
+
+
+def common_prefix_len(a, b):
+    limit = min(len(a), len(b))
+    i = 0
+    while i < limit and a[i] == b[i]:
+        i += 1
+    return i
+
+
+def retype(new_text):
+    """Turn what is already on screen into new_text with as few keystrokes as
+    possible, leaving the part that did not change alone.
+
+    Backspace removes exactly one character in both Windows edit controls and
+    Chromium text boxes, Bangla vowel signs and conjuncts included, so
+    counting characters is safe here.
+    """
+    global typed_text, typed_at
+    keep = common_prefix_len(typed_text, new_text)
+    press_backspace(len(typed_text) - keep)
+    type_text(new_text[keep:])
+    typed_text = new_text
+    typed_at = time.monotonic()
 
 
 def prepare_target():
@@ -340,8 +600,8 @@ def prepare_target():
     return True, target["title"]
 
 
-def handle_text(text, is_final):
-    global pending_interim_len
+def handle_text(text, is_final, lang=None):
+    global typed_text, typed_hwnd, last_interim
 
     if not is_final and not TYPE_INTERIM:
         return {"result": "ignored"}
@@ -349,46 +609,66 @@ def handle_text(text, is_final):
     with type_lock:
         ok, message = prepare_target()
         if not ok:
-            pending_interim_len = 0
+            # Nothing was typed, so what is on screen is still exactly what
+            # typed_text says. Forgetting it here would make the next write
+            # repeat the whole phrase.
             log("  ! " + message)
             return {"result": "blocked", "message": message}
 
+        # Two things make the remembered text untrustworthy: a different
+        # window, and time. Either way we forget it rather than backspace over
+        # characters that may no longer be ours.
+        current = user32.GetForegroundWindow()
+        if current != typed_hwnd:
+            typed_text = ""
+            typed_hwnd = current
+        elif typed_text and time.monotonic() - typed_at > TYPED_TEXT_STALE_SEC:
+            typed_text = ""
+
         try:
             if is_final:
-                press_backspace(pending_interim_len)
-                pending_interim_len = 0
-                out = text.strip()
+                last_interim = ""
+                out = finish_phrase(text, lang)
                 if not out:
-                    return {"result": "empty"}
-                if ADD_TRAILING_SPACE and not out.endswith(" "):
-                    out += " "
-                type_text(out)
+                    return {"result": "empty", "message": message}
+                retype(out)
+                typed_text = ""          # the phrase is committed
                 log("  -> [%s] %s" % (message, out.strip()))
                 return {"result": "typed", "message": message}
 
-            press_backspace(pending_interim_len)
-            out = text.strip()
-            type_text(out)
-            pending_interim_len = len(out)
+            settled = settled_part(text) if STABLE_INTERIM else text.strip()
+            # Only write when there is something new. A shorter settled string
+            # that still matches the screen means Google simply has not caught
+            # up yet, and erasing back to it would be pure flicker.
+            if settled and not typed_text.startswith(settled):
+                retype(settled)
             return {"result": "interim", "message": message}
 
         except Exception as exc:
-            pending_interim_len = 0
+            # A write failed part way through, so what is on screen is now
+            # anybody's guess. Forget it rather than backspace blindly.
+            typed_text = ""
+            last_interim = ""
             msg = str(exc) or exc.__class__.__name__
             log("  ! " + msg)
             return {"result": "error", "message": msg}
-
-
-def reset_interim():
-    global pending_interim_len
-    with type_lock:
-        pending_interim_len = 0
 
 
 # --------------------------- SSE broadcast ---------------------------
 
 sse_clients = []
 sse_lock = threading.Lock()
+
+# Things the user has to know about, such as a hotkey another app already
+# owns. These used to go only to the log file, where nobody saw them.
+warnings = []
+
+
+def warn(message):
+    log("  ! " + message)
+    if message not in warnings:
+        warnings.append(message)
+    broadcast({"cmd": "warn", "message": message})
 
 
 def broadcast(payload):
@@ -402,23 +682,35 @@ def broadcast(payload):
 # --------------------------- shutdown watchdog ---------------------------
 
 def watch_window():
-    """Quit once the Voice Bridge window is gone for good."""
+    """Quit once the Voice Bridge window is gone.
+
+    This watches the window itself rather than the page's connection. A reload
+    drops the connection for a moment but keeps the window, and a closed window
+    is noticed straight away instead of whenever the dead connection is finally
+    detected. That matters because clicking the shortcut right after closing
+    the window has to find the old copy already gone.
+    """
     seen = False
-    empty_since = None
+    gone_since = None
+    waited = 0.0
     while True:
-        with sse_lock:
-            count = len(sse_clients)
-        if count:
+        if find_own_window():
             seen = True
-            empty_since = None
+            gone_since = None
         elif seen:
-            if empty_since is None:
-                empty_since = time.monotonic()
-            elif time.monotonic() - empty_since > QUIT_GRACE_SEC:
+            if gone_since is None:
+                gone_since = time.monotonic()
+            elif time.monotonic() - gone_since > QUIT_GRACE_SEC:
                 log("Voice Bridge window closed. Quitting.")
                 time.sleep(0.1)
                 os._exit(0)
-        time.sleep(1.0)
+        else:
+            waited += 0.5
+            if waited > STARTUP_WINDOW_TIMEOUT_SEC:
+                log("The Voice Bridge window never opened. Quitting so the "
+                    "next launch can start cleanly.")
+                os._exit(1)
+        time.sleep(0.5)
 
 
 # --------------------------- HTTP server ---------------------------
@@ -474,6 +766,7 @@ class Handler(BaseHTTPRequestHandler):
                 "hotkeyToggle": HOTKEY_TOGGLE,
                 "hotkeyLang": HOTKEY_LANG,
                 "target": target["title"],
+                "warnings": warnings,
             }).encode("utf-8")
             self._send_bytes(200, body, "application/json; charset=utf-8")
             return
@@ -520,7 +813,8 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/text":
-            result = handle_text(data.get("text", ""), bool(data.get("final")))
+            result = handle_text(data.get("text", ""), bool(data.get("final")),
+                                 data.get("lang"))
             self._send_bytes(200, json.dumps(result).encode("utf-8"),
                              "application/json; charset=utf-8")
             return
@@ -528,8 +822,6 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/state":
             listening = bool(data.get("listening"))
             lang = data.get("lang", "")
-            if not listening:
-                reset_interim()
             line = ("  LISTENING  " if listening else "  stopped    ") + lang
             if listening:
                 line += "   target: " + (target["title"] or "none")
@@ -588,11 +880,12 @@ def hotkey_loop():
         try:
             mods, key = parse_hotkey(spec)
         except ValueError as exc:
-            log("  ! " + str(exc))
+            warn("%s. The %s hotkey will not work until you fix it in "
+                 "voicebridge.py." % (exc, label))
             continue
         if not user32.RegisterHotKey(None, hotkey_id, mods, key):
-            log("  ! Hotkey '%s' (%s) is already taken by another app. "
-                "Edit the CONFIG block and restart." % (spec, label))
+            warn("The %s hotkey %s is already taken by another app. Change it "
+                 "in voicebridge.py and restart." % (label, spec.upper()))
 
     msg = wintypes.MSG()
     while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
@@ -606,6 +899,9 @@ def hotkey_loop():
 
 
 # --------------------------- startup ---------------------------
+
+single_instance = None
+
 
 def find_browser():
     candidates = [
@@ -644,6 +940,13 @@ def open_window():
 
 
 def main():
+    # Held for as long as Voice Bridge runs. Closing it would let a second
+    # copy start, so keep the reference alive.
+    global single_instance
+    single_instance = claim_single_instance()
+    if single_instance is None:
+        return
+
     try:
         server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     except OSError as exc:

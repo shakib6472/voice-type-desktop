@@ -26,7 +26,10 @@
     -webkit-user-select: none; user-select: none;
     overflow: hidden;
   }
-  body { display: flex; flex-direction: column; padding: 8px 10px; gap: 6px; }
+  body {
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 8px 10px; gap: 6px;
+  }
 
   .bar { display: flex; align-items: center; gap: 10px; }
 
@@ -113,8 +116,6 @@
   var targetEl = document.getElementById("target");
   var infoBtn = document.getElementById("info");
 
-  var H_SMALL = 110, H_TALL = 142;
-
   var config = {
     defaultLang: "bn-BD", altLang: "en-US", typeInterim: false,
     hotkeyToggle: "ctrl+alt+m", hotkeyLang: "ctrl+alt+l", target: ""
@@ -123,7 +124,6 @@
   var listening = false;
   var lang = config.defaultLang;
   var restartTimer = null;
-  var chain = Promise.resolve();
 
   function label(code) {
     if (code.indexOf("bn") === 0) return "বাংলা";
@@ -140,33 +140,56 @@
 
   // The mic is the only status light: grey idle, green live, red problem.
   // The reason for red always sits in the tooltip and in the target line.
+  //
+  // A problem that does not go away on its own, a hotkey another app already
+  // owns above all, is kept as a sticky warning. Without that it was wiped by
+  // the first successful phrase and the mic went quietly grey again while the
+  // hotkey was still dead.
+  var stickyWarning = "";
+  var lastTargetText = "Waiting for a target window";
+
   function setError(text) {
     body.classList.add("error");
     toggleBtn.title = text;
     showTarget(text, true);
   }
 
+  function setStickyWarning(text) {
+    stickyWarning = text;
+    setError(text);
+  }
+
   function clearError() {
+    if (stickyWarning) { setError(stickyWarning); return; }
     body.classList.remove("error");
+    showTarget(lastTargetText, false);
     refreshMicTitle();
   }
 
   function refreshMicTitle() {
+    // Never overwrite the reason the mic is red.
+    if (body.classList.contains("error")) return;
     toggleBtn.title = (listening ? "Listening in " + lang : "Start dictation")
       + "  (" + prettyKeys(config.hotkeyToggle) + ")";
   }
 
   function showTarget(text, bad) {
     targetEl.textContent = text;
+    targetEl.title = text;          // the line is narrow, so keep the full text
     targetEl.classList.toggle("bad", !!bad);
   }
 
-  // The "typing into ..." line is optional, and the window shrinks without it.
+  function showTargetApp(text) {
+    lastTargetText = text;
+    if (!body.classList.contains("error")) showTarget(text, false);
+  }
+
+  // The "typing into ..." line is optional. The window is small enough either
+  // way, so nothing is resized and you keep whatever size you drag it to.
   function applyInfo(on) {
     targetEl.hidden = !on;
     infoBtn.setAttribute("aria-pressed", String(on));
     try { localStorage.setItem("vb.showTarget", on ? "1" : "0"); } catch (e) {}
-    try { window.resizeTo(window.outerWidth, on ? H_TALL : H_SMALL); } catch (e) {}
   }
 
   infoBtn.addEventListener("click", function () {
@@ -183,19 +206,76 @@
     return;
   }
 
-  function post(path, payload, onResult) {
-    chain = chain.then(function () {
-      return fetch(path, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      }).then(function (r) {
-        if (!r.ok) throw new Error("Voice Bridge server error " + r.status);
-        return r.json();
-      }).then(function (j) { if (onResult) onResult(j); })
-        .catch(function (err) { setError(err.message || "Cannot reach Voice Bridge"); });
-    });
-    return chain;
+  function post(path, payload) {
+    return fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }).catch(function () {});
+  }
+
+  // Sending what was heard.
+  //
+  // Google sends a fresh interim result several times a second. Queueing every
+  // one of them behind the last made the typing fall further and further
+  // behind on a long sentence until it looked frozen, so only the newest
+  // interim is ever waiting to go out. Final results are never dropped.
+  var pendingFinals = [];
+  var pendingInterim = null;
+  var sending = false;
+  var lastSentAt = 0;
+  var pumpTimer = null;
+  var INTERIM_MIN_GAP_MS = 220;
+
+  // itsLang is the language the recognizer was listening in, not whatever is
+  // selected now. Switching language mid phrase used to finish the Bangla
+  // sentence with an English full stop.
+  function queueText(text, isFinal, itsLang) {
+    var job = { text: text, lang: itsLang };
+    if (isFinal) {
+      pendingFinals.push(job);
+      pendingInterim = null;        // the final says it better
+    } else {
+      pendingInterim = job;
+    }
+    pump();
+  }
+
+  function pump() {
+    if (sending) return;
+    var job;
+    if (pendingFinals.length) {
+      job = pendingFinals.shift();
+      job.final = true;
+    } else if (pendingInterim !== null) {
+      var wait = INTERIM_MIN_GAP_MS - (Date.now() - lastSentAt);
+      if (wait > 0) {
+        clearTimeout(pumpTimer);
+        pumpTimer = setTimeout(pump, wait);
+        return;
+      }
+      job = pendingInterim;
+      job.final = false;
+      pendingInterim = null;
+    } else {
+      return;
+    }
+
+    sending = true;
+    fetch("/text", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: job.text, final: job.final, lang: job.lang || lang })
+    }).then(function (r) {
+      if (!r.ok) throw new Error("Voice Bridge server error " + r.status);
+      return r.json();
+    }).then(onTyped)
+      .catch(function (err) { setError(err.message || "Cannot reach Voice Bridge"); })
+      .then(function () {
+        sending = false;
+        lastSentAt = Date.now();
+        pump();
+      });
   }
 
   function onTyped(res) {
@@ -203,8 +283,8 @@
     if (res.result === "blocked" || res.result === "error") {
       setError(res.message || "Typing blocked");
     } else if (res.message) {
+      lastTargetText = "Typing into  " + res.message;
       clearError();
-      showTarget("Typing into  " + res.message, false);
     }
   }
 
@@ -230,36 +310,59 @@
     if (listening) { stop(); setTimeout(start, 180); }
   }
 
+  // Every recognizer gets a number. Chrome keeps delivering events from an
+  // engine after it has been replaced, and acting on those would restart the
+  // wrong one, so stale engines are ignored.
+  var generation = 0;
+  var restartFails = 0;
+  var lastEngineEvent = 0;
+  var watchdogTimer = null;
+  var ENGINE_STALL_MS = 12000;
+
+  function engineAlive() { lastEngineEvent = Date.now(); }
+
   function buildRecognizer() {
+    var mine = ++generation;
+    var itsLang = lang;
     var r = new SR();
-    r.lang = lang;
+    r.lang = itsLang;
     r.continuous = true;
     r.interimResults = true;
     r.maxAlternatives = 1;
 
     r.onstart = function () {
+      if (mine !== generation) return;
+      engineAlive();
+      restartFails = 0;
       body.classList.add("live");
       toggleBtn.setAttribute("aria-pressed", "true");
       toggleBtn.setAttribute("aria-label", "Stop dictation");
       clearError();
     };
 
+    r.onaudiostart = engineAlive;
+    r.onspeechstart = engineAlive;
+
     r.onresult = function (e) {
+      engineAlive();
       for (var i = e.resultIndex; i < e.results.length; i++) {
         var result = e.results[i];
         var text = result[0].transcript;
         if (result.isFinal) {
-          post("/text", { text: text, final: true }, onTyped);
+          queueText(text, true, itsLang);
         } else if (config.typeInterim) {
-          post("/text", { text: text, final: false }, onTyped);
+          queueText(text, false, itsLang);
         }
       }
     };
 
     r.onerror = function (e) {
+      engineAlive();
+      if (mine !== generation) return;
       if (e.error === "no-speech" || e.error === "aborted") return;
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
         listening = false;
+        stopWatchdog();
         paintStopped();
         setError("Microphone blocked. Allow it for this page, then reload.");
         return;
@@ -268,16 +371,65 @@
     };
 
     r.onend = function () {
+      engineAlive();
+      if (mine !== generation) return;
       // Chrome ends the session after a pause. Restart it so dictation feels
       // continuous, the same way the Voice In extension does.
       if (!listening) { paintStopped(); return; }
-      clearTimeout(restartTimer);
-      restartTimer = setTimeout(function () {
-        try { rec.start(); } catch (err) { /* already starting */ }
-      }, 250);
+      scheduleRestart(250);
     };
 
     return r;
+  }
+
+  function replaceRecognizer() {
+    try { rec.abort(); } catch (err) {}
+    rec = buildRecognizer();
+    try {
+      rec.start();
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function scheduleRestart(delay) {
+    clearTimeout(restartTimer);
+    restartTimer = setTimeout(function () {
+      if (!listening) return;
+      try {
+        rec.start();
+        restartFails = 0;
+      } catch (err) {
+        // Silently swallowing this is what used to leave the mic green with
+        // nothing being typed. A wedged engine never recovers, so after a
+        // couple of failures throw it away and build a new one.
+        restartFails++;
+        if (restartFails >= 2 && replaceRecognizer()) {
+          restartFails = 0;
+          return;
+        }
+        scheduleRestart(300 * restartFails);
+      }
+    }, delay);
+  }
+
+  function startWatchdog() {
+    stopWatchdog();
+    engineAlive();
+    watchdogTimer = setInterval(function () {
+      if (!listening) return;
+      if (Date.now() - lastEngineEvent < ENGINE_STALL_MS) return;
+      // Chrome sometimes goes quiet without ever ending the session. Rebuild
+      // rather than sit there looking like everything is fine.
+      engineAlive();
+      if (!replaceRecognizer()) scheduleRestart(400);
+    }, 3000);
+  }
+
+  function stopWatchdog() {
+    clearInterval(watchdogTimer);
+    watchdogTimer = null;
   }
 
   function paintStopped() {
@@ -298,6 +450,7 @@
       setError("Could not start: " + err.message);
       return;
     }
+    startWatchdog();
     post("/state", { listening: true, lang: lang });
   }
 
@@ -305,6 +458,10 @@
     if (!listening) return;
     listening = false;
     clearTimeout(restartTimer);
+    stopWatchdog();
+    // Anything still queued is stale, but a final that Chrome has not handed
+    // over yet is still coming and must be allowed through.
+    pendingInterim = null;
     try { rec.stop(); } catch (err) {}
     paintStopped();
     post("/state", { listening: false, lang: lang });
@@ -320,7 +477,8 @@
     var msg = JSON.parse(e.data);
     if (msg.cmd === "toggle") { listening ? stop() : start(); }
     if (msg.cmd === "lang") { setLang(lang === config.defaultLang ? config.altLang : config.defaultLang); }
-    if (msg.cmd === "target") { showTarget("Typing into  " + msg.title, false); }
+    if (msg.cmd === "target") { showTargetApp("Typing into  " + msg.title); }
+    if (msg.cmd === "warn") { setStickyWarning(msg.message); }
   };
 
   fetch("/config")
@@ -330,7 +488,10 @@
       lang = c.defaultLang;
       renderLangs();
       refreshMicTitle();
-      if (c.target) showTarget("Typing into  " + c.target, false);
+      if (c.target) showTargetApp("Typing into  " + c.target);
+      // A hotkey another app already owns is the one failure you cannot see
+      // any other way, so it turns the mic red and stays there.
+      if (c.warnings && c.warnings.length) setStickyWarning(c.warnings.join("  "));
     })
     .catch(function () { renderLangs(); refreshMicTitle(); });
 })();
